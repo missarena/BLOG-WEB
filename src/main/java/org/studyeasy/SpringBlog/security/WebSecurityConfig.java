@@ -19,8 +19,7 @@ public class WebSecurityConfig {
             "/css/**",
             "/fonts/**",
             "/images/**",
-            "/js/**",
-            "/ts/**"
+            "/js/**"
     };
 
 
