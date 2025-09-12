@@ -28,6 +28,7 @@ import java.nio.file.Paths;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.Principal;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +41,9 @@ public class AccountController {
 
     @Value("${spring.mvc.static-path-pattern}")
     private String photo_prefix;
+
+    @Value("${password.token.reset.timeout.minutes}")
+    private int password_reset_token_timeout;
 
     @GetMapping("/register")
     public String register(Model model){
@@ -110,50 +114,65 @@ public class AccountController {
         }
 
     }
-    @PostMapping
+    @PostMapping("/update_photo")
     @PreAuthorize("isAuthenticated()")
-    public String update_photo(@RequestParam("file")MultipartFile file, RedirectAttributes attributes,Principal principal){
-        if(file.isEmpty()){
-             attributes.addAttribute("error","No file uploaded");
-             return "redirect:/profile";
-        }else{
-            String fileName= StringUtils.cleanPath(file.getOriginalFilename());
-            try{
-                int length=10;
-                boolean useLetters=true;
-                boolean useNumbers=true;
-                String generatedString = UUID.randomUUID().toString().substring(0, 10);
-
-                String final_photo_name=generatedString+fileName;
-                String absolutefileLocation= AppUtil.get_upload_path(final_photo_name);
-                Path path= Paths.get(absolutefileLocation);
-                Files.copy(file.getInputStream(),path, StandardCopyOption.REPLACE_EXISTING);
-                attributes.addFlashAttribute("message","File uploaded successfully");
-                String authUser="email";
-                if(principal != null){
-                    authUser = principal.getName();
-                }
-                Optional<Account>optional_account=accountService.findOneByEmail(authUser);
-                if(optional_account.isPresent()){
-                    Account account=optional_account.get();
-                    Account account_by_id=accountService.findOneById(account.getId()).get();
-                    String relative_filelocation=photo_prefix.replace("**","uploads/+final_photo_name");
-                    account_by_id.setPhoto(relative_filelocation);
-                    accountService.save(account_by_id);
-                }
-                try{
-                    TimeUnit.SECONDS.sleep(1);
-                }catch(InterruptedException e){
-                    Thread.currentThread().interrupt();
-                }
-                return "redirect:/profile";
-            }catch(Exception e){
-
-            }
+    public String updatePhoto(@RequestParam("file") MultipartFile file,
+                              RedirectAttributes attributes,
+                              Principal principal) {
+        if (file.isEmpty()) {
+            attributes.addFlashAttribute("error", "No file uploaded");
+            return "redirect:/profile";
         }
-        return "redirect:/profile?error";
+
+        try {
+            // Generate safe unique filename
+            String fileName = UUID.randomUUID().toString().substring(0, 10)
+                    + "_" + StringUtils.cleanPath(file.getOriginalFilename());
+
+            // Save file
+            String absolutePath = AppUtil.get_upload_path(fileName);
+            Path path = Paths.get(absolutePath);
+            Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
+
+            // Find logged-in user
+            String email = (principal != null) ? principal.getName() : null;
+            if (email != null) {
+                accountService.findOneByEmail(email).ifPresent(account -> {
+                    account.setPhoto("uploads/" + fileName);
+                    accountService.save(account);
+                });
+            }
+
+            attributes.addFlashAttribute("message", "File uploaded successfully!");
+            return "redirect:/profile";
+
+        } catch (Exception e) {
+            attributes.addFlashAttribute("error", "Error uploading file: " + e.getMessage());
+            return "redirect:/profile?error";
+        }
     }
 
 
+    @GetMapping("/forgot-password")
+    public String forgot_password(Model model){
+        return "account_views/forgot_password";
+    }
+
+    @PostMapping("/reset-password")
+    public String reset_password(@RequestParam("email") String _email,RedirectAttributes attributes,Model model) {
+        Optional<Account> optional_account = accountService.findOneByEmail(_email);
+        if (optional_account.isPresent()) {
+            Account account = accountService.findOneById(optional_account.get().getId()).get();
+            String resettoken = UUID.randomUUID().toString();
+            account.setPassword_reset_token(resettoken);
+            account.setPassword_reset_token_expiry(LocalDateTime.now().plusDays(password_reset_token_timeout));
+            accountService.save(account);
+            attributes.addFlashAttribute("message", "Password reset email sent!");
+            return "redirect:/login";
+        } else {
+            attributes.addFlashAttribute("error", "No user find with the email given!");
+            return "redirect:/forgot-password";
+        }
+    }
     
 }

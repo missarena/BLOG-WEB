@@ -21,11 +21,10 @@
               <img th:src="@{${photo}}" class="rounded-circle"style="width:150px;float: left; padding: 10px 10px 10px 10px;" alt="Avatar" />
               <p th:text="${error}" th:if="${error ne null}" class="alert-danger"></p>
               <form method="post" th:action="@{/update_photo}" enctype="multipart/form-data">
-                  <div class="form-group">
-                      <input type="file" class="form-control-file">
-                  </div>
+                  <input type="file" class="form-control-file" name="file" required />
                   <button type="submit" class="btn btn-primary">Update photo</button>
               </form>
+
           </div>
           <div class="row">
               <div class="col-md-6">
