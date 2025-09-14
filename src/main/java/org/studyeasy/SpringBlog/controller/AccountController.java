@@ -20,7 +20,9 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.studyeasy.SpringBlog.models.Account;
 import org.studyeasy.SpringBlog.services.AccountService;
+import org.studyeasy.SpringBlog.services.EmailService;
 import org.studyeasy.SpringBlog.util.constants.AppUtil;
+import org.studyeasy.SpringBlog.util.email.emailDetails;
 
 import java.nio.file.Files;
 
@@ -35,6 +37,9 @@ import java.util.concurrent.TimeUnit;
 
 @Controller
 public class AccountController {
+
+    @Autowired
+    private EmailService emailService;
 
     @Autowired
     private AccountService accountService;
@@ -167,6 +172,13 @@ public class AccountController {
             account.setPassword_reset_token(resettoken);
             account.setPassword_reset_token_expiry(LocalDateTime.now().plusDays(password_reset_token_timeout));
             accountService.save(account);
+            String reset_message="This is the rest password link: http://localhost/reset-password?token"+resettoken;
+            emailDetails emaildetails = new emailDetails(account.getEmail(), reset_message, resettoken,"reset passord demo");
+            if(emailService.sendSimpleEmail(emaildetails)==false){
+                attributes.addFlashAttribute("error", "Error while sending email,contact admin");
+                return "redirect:/forgot-password";
+
+            }
             attributes.addFlashAttribute("message", "Password reset email sent!");
             return "redirect:/login";
         } else {
